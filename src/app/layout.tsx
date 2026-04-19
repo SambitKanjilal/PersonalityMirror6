@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Personality Match",
+  title: "Mirror",
   description: "Find your closest personality matches using the Big Five model",
 };
 
