@@ -7,7 +7,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type PersonalityRow = {
   id: string;
-  phone_number: string;
+  email: string;
   openness: number;
   conscientiousness: number;
   extraversion: number;

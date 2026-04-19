@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS personalities (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  phone_number TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
   openness FLOAT NOT NULL,
   conscientiousness FLOAT NOT NULL,
   extraversion FLOAT NOT NULL,
@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS personalities (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Euclidean distance search, excluding the caller's own phone number, returns top 4
+-- Euclidean distance search, excluding the caller's own email, returns top 4
 CREATE OR REPLACE FUNCTION find_closest_friends(
-  p_phone TEXT,
+  p_email TEXT,
   p_openness FLOAT,
   p_conscientiousness FLOAT,
   p_extraversion FLOAT,
@@ -31,7 +31,7 @@ STABLE
 AS $$
   SELECT *
   FROM personalities
-  WHERE phone_number <> p_phone
+  WHERE email <> p_email
   ORDER BY
     SQRT(
       POW(openness           - p_openness, 2) +
@@ -42,3 +42,7 @@ AS $$
     ) ASC
   LIMIT 4;
 $$;
+
+-- Migration: run these if you already have the table with phone_number
+-- ALTER TABLE personalities RENAME COLUMN phone_number TO email;
+DROP FUNCTION IF EXISTS find_closest_friends(TEXT,FLOAT,FLOAT,FLOAT,FLOAT,FLOAT);

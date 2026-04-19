@@ -9,19 +9,19 @@ function getSupabase() {
 }
 
 export async function POST(req: NextRequest) {
-  const { phoneNumber, personality } = (await req.json()) as {
-    phoneNumber: string;
+  const { email, personality } = (await req.json()) as {
+    email: string;
     personality: PersonalityJson;
   };
 
-  if (!phoneNumber || !personality?.ocean) {
+  if (!email || !personality?.ocean) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
   const supabase = getSupabase();
 
   const row = {
-    phone_number: phoneNumber,
+    email,
     openness: personality.ocean.openness,
     conscientiousness: personality.ocean.conscientiousness,
     extraversion: personality.ocean.extraversion,
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const { error: upsertError } = await supabase
     .from("personalities")
-    .upsert(row, { onConflict: "phone_number" });
+    .upsert(row, { onConflict: "email" });
 
   if (upsertError) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   const { data: matches, error: matchError } = await supabase.rpc(
     "find_closest_friends",
     {
-      p_phone: phoneNumber,
+      p_email: email,
       p_openness: row.openness,
       p_conscientiousness: row.conscientiousness,
       p_extraversion: row.extraversion,
