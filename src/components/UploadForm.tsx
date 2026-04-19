@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { PersonalityJson, PersonalityRow, supabase } from "@/lib/supabase";
+import { useState, useRef } from "react";
+import { PersonalityJson, PersonalityRow } from "@/lib/supabase";
 import PersonalityCard from "./PersonalityCard";
 
 const MAX_OCEAN_DIST = Math.sqrt(5);
@@ -17,11 +17,12 @@ function oceanMatchScore(a: PersonalityRow, b: PersonalityJson["ocean"]): number
   return Math.round((1 - dist / MAX_OCEAN_DIST) * 100);
 }
 
-type Step = "email" | "waiting" | "form";
+type Step = "phone" | "otp" | "form";
 
 export default function UploadForm() {
-  const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<Step>("phone");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,34 +30,18 @@ export default function UploadForm() {
   const [myOcean, setMyOcean] = useState<PersonalityJson["ocean"] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session) {
-        setEmail(session.user.email ?? "");
-        setStep("form");
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function handleSendLink(e: React.FormEvent) {
+  function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!email.trim()) return setError("Email address is required.");
+    if (!phone.trim()) return setError("Phone number is required.");
+    setStep("otp");
+  }
 
-    setLoading(true);
-    try {
-      const { error: linkError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (linkError) throw linkError;
-      setStep("waiting");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send link.");
-    } finally {
-      setLoading(false);
-    }
+  function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!otp.trim()) return setError("Please enter a code.");
+    setStep("form");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -83,7 +68,7 @@ export default function UploadForm() {
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), personality }),
+        body: JSON.stringify({ phoneNumber: phone.trim(), personality }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Upload failed.");
@@ -98,21 +83,21 @@ export default function UploadForm() {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {step === "email" && (
+      {step === "phone" && (
         <form
-          onSubmit={handleSendLink}
+          onSubmit={handleSendCode}
           className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
         >
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5" htmlFor="email">
-              Email Address
+            <label className="block text-sm text-gray-400 mb-1.5" htmlFor="phone">
+              Phone Number
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+1 555 000 0000"
               className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition"
             />
           </div>
@@ -125,29 +110,57 @@ export default function UploadForm() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 transition"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg py-3 transition"
           >
-            {loading ? "Sending link…" : "Send Magic Link"}
+            Send Code
           </button>
         </form>
       )}
 
-      {step === "waiting" && (
-        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-4 shadow-xl text-center">
-          <p className="text-gray-300 font-semibold">Check your inbox</p>
+      {step === "otp" && (
+        <form
+          onSubmit={handleVerifyCode}
+          className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
+        >
           <p className="text-gray-400 text-sm">
-            We sent a magic link to <span className="text-gray-200">{email}</span>.<br />
-            Click it and you'll be brought back here automatically.
+            Enter the code sent to <span className="text-gray-200">{phone}</span>.
           </p>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1.5" htmlFor="otp">
+              Verification Code
+            </label>
+            <input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="000000"
+              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition tracking-widest text-center text-lg"
+            />
+          </div>
+
+          {error && (
+            <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/50 rounded-lg px-4 py-2">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg py-3 transition"
+          >
+            Verify
+          </button>
+
           <button
             type="button"
-            onClick={() => { setStep("email"); setError(null); }}
-            className="text-gray-500 hover:text-gray-300 text-sm transition mt-2"
+            onClick={() => { setStep("phone"); setError(null); setOtp(""); }}
+            className="text-gray-500 hover:text-gray-300 text-sm transition"
           >
-            ← Use a different email
+            ← Use a different number
           </button>
-        </div>
+        </form>
       )}
 
       {step === "form" && (
@@ -155,7 +168,7 @@ export default function UploadForm() {
           onSubmit={handleSubmit}
           className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
         >
-          <p className="text-green-400 text-sm">✓ Verified: {email}</p>
+          <p className="text-green-400 text-sm">✓ Verified: {phone}</p>
 
           <div>
             <label className="block text-sm text-gray-400 mb-1.5">

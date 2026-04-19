@@ -25,7 +25,7 @@ export default function PersonalityCard({ person, rank, matchScore }: Props) {
           <p className="text-sm text-gray-300 font-semibold capitalize">
             {person.spirit_animal}
           </p>
-          <p className="text-xs text-gray-500">{person.email}</p>
+          <p className="text-xs text-gray-500">{person.phone_number}</p>
         </div>
         <div className="ml-auto text-right">
           <span className="text-2xl font-bold text-indigo-400">{matchScore}%</span>
