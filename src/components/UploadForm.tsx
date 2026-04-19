@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { PersonalityJson, PersonalityRow, supabase } from "@/lib/supabase";
 import PersonalityCard from "./PersonalityCard";
 
@@ -17,12 +17,11 @@ function oceanMatchScore(a: PersonalityRow, b: PersonalityJson["ocean"]): number
   return Math.round((1 - dist / MAX_OCEAN_DIST) * 100);
 }
 
-type Step = "email" | "otp" | "form";
+type Step = "email" | "waiting" | "form";
 
 export default function UploadForm() {
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,39 +29,31 @@ export default function UploadForm() {
   const [myOcean, setMyOcean] = useState<PersonalityJson["ocean"] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function handleSendOtp(e: React.FormEvent) {
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        setEmail(session.user.email ?? "");
+        setStep("form");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function handleSendLink(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!email.trim()) return setError("Email address is required.");
 
     setLoading(true);
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({ email: email.trim() });
-      if (otpError) throw otpError;
-      setStep("otp");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!otp.trim()) return setError("Please enter the verification code.");
-
-    setLoading(true);
-    try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      const { error: linkError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        token: otp.trim(),
-        type: "email",
+        options: { emailRedirectTo: window.location.origin },
       });
-      if (verifyError) throw verifyError;
-      setStep("form");
+      if (linkError) throw linkError;
+      setStep("waiting");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Verification failed.");
+      setError(err instanceof Error ? err.message : "Failed to send link.");
     } finally {
       setLoading(false);
     }
@@ -109,7 +100,7 @@ export default function UploadForm() {
     <div className="w-full max-w-4xl mx-auto">
       {step === "email" && (
         <form
-          onSubmit={handleSendOtp}
+          onSubmit={handleSendLink}
           className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
         >
           <div>
@@ -137,56 +128,26 @@ export default function UploadForm() {
             disabled={loading}
             className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 transition"
           >
-            {loading ? "Sending code…" : "Send Verification Code"}
+            {loading ? "Sending link…" : "Send Magic Link"}
           </button>
         </form>
       )}
 
-      {step === "otp" && (
-        <form
-          onSubmit={handleVerifyOtp}
-          className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
-        >
+      {step === "waiting" && (
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-4 shadow-xl text-center">
+          <p className="text-gray-300 font-semibold">Check your inbox</p>
           <p className="text-gray-400 text-sm">
-            A verification code was sent to <span className="text-gray-200">{email}</span>.
+            We sent a magic link to <span className="text-gray-200">{email}</span>.<br />
+            Click it and you'll be brought back here automatically.
           </p>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1.5" htmlFor="otp">
-              Verification Code
-            </label>
-            <input
-              id="otp"
-              type="text"
-              inputMode="numeric"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-              placeholder="enter code"
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition tracking-widest text-center text-lg"
-            />
-          </div>
-
-          {error && (
-            <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/50 rounded-lg px-4 py-2">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 transition"
-          >
-            {loading ? "Verifying…" : "Verify Code"}
-          </button>
-
           <button
             type="button"
-            onClick={() => { setStep("email"); setError(null); setOtp(""); setEmail(""); }}
-            className="text-gray-500 hover:text-gray-300 text-sm transition"
+            onClick={() => { setStep("email"); setError(null); }}
+            className="text-gray-500 hover:text-gray-300 text-sm transition mt-2"
           >
             ← Use a different email
           </button>
-        </form>
+        </div>
       )}
 
       {step === "form" && (
@@ -194,9 +155,7 @@ export default function UploadForm() {
           onSubmit={handleSubmit}
           className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
         >
-          <p className="text-green-400 text-sm">
-            ✓ Verified: {email}
-          </p>
+          <p className="text-green-400 text-sm">✓ Verified: {email}</p>
 
           <div>
             <label className="block text-sm text-gray-400 mb-1.5">
