@@ -4,12 +4,26 @@ import { useState, useRef } from "react";
 import { PersonalityJson, PersonalityRow } from "@/lib/supabase";
 import PersonalityCard from "./PersonalityCard";
 
+const MAX_OCEAN_DIST = Math.sqrt(5); // max possible Euclidean distance in 5D unit space
+
+function oceanMatchScore(a: PersonalityRow, b: PersonalityJson["ocean"]): number {
+  const dist = Math.sqrt(
+    (a.openness - b.openness) ** 2 +
+    (a.conscientiousness - b.conscientiousness) ** 2 +
+    (a.extraversion - b.extraversion) ** 2 +
+    (a.agreeableness - b.agreeableness) ** 2 +
+    (a.neuroticism - b.neuroticism) ** 2
+  );
+  return Math.round((1 - dist / MAX_OCEAN_DIST) * 100);
+}
+
 export default function UploadForm() {
   const [phone, setPhone] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [friends, setFriends] = useState<PersonalityRow[] | null>(null);
+  const [myOcean, setMyOcean] = useState<PersonalityJson["ocean"] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,6 +56,7 @@ export default function UploadForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Upload failed.");
       setFriends(data.friends);
+      setMyOcean(personality.ocean);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error.");
     } finally {
@@ -50,7 +65,7 @@ export default function UploadForm() {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-4xl mx-auto">
       <form
         onSubmit={handleSubmit}
         className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
@@ -122,7 +137,12 @@ export default function UploadForm() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {friends.map((f, i) => (
-                  <PersonalityCard key={f.id} person={f} rank={i + 1} />
+                  <PersonalityCard
+                    key={f.id}
+                    person={f}
+                    rank={i + 1}
+                    matchScore={myOcean ? oceanMatchScore(f, myOcean) : 0}
+                  />
                 ))}
               </div>
             </>
