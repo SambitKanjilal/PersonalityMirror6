@@ -158,7 +158,6 @@ export default function UploadForm() {
               id="otp"
               type="text"
               inputMode="numeric"
-              maxLength={6}
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
